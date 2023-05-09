@@ -207,6 +207,18 @@ thread_create (const char *name, int priority,
 	
 	tid = t->tid = allocate_tid ();
 
+	// project 2
+	t->fd_table = palloc_get_multiple(PAL_ZERO,FDT_PAGES);
+	if (t->fd_table == NULL){
+		return TID_ERROR;
+	}
+	t->fd_idx = 2;
+
+	// 자식 리스트에 추가
+	list_push_back(&thread_current()->child_list,&t->child_elem);
+
+
+
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	t->tf.rip = (uintptr_t) kernel_thread;
@@ -544,6 +556,17 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original_priority = priority;
 	
 	t->magic = THREAD_MAGIC;
+
+	// project 2
+	t->exit_status = 0;
+	
+	list_init(&t->child_list);
+	sema_init(&t->fork_sema,0);
+	sema_init(&t->wait_sema,0);
+	sema_init(&t->free_sema,0);
+
+
+	t->running = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

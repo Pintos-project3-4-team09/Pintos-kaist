@@ -8,6 +8,7 @@
 #ifdef VM
 #include "vm/vm.h"
 #endif
+#include "include/threads/synch.h"
 
 
 /* States in a thread's life cycle. */
@@ -28,6 +29,10 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+
+// project 2 
+#define FDT_PAGES 3 // pages allocate for file descriptor tables (thread_create,process_exit)
+#define FDCOUNT_LIMIT FDT_PAGES *(1 << 9) // fd_idx limit
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -102,6 +107,20 @@ struct thread {
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
+	// project 2
+	int exit_status;
+
+	struct file **fd_table; 
+	int fd_idx;
+	
+	struct file *running;
+
+	struct semaphore wait_sema;
+	struct semaphore free_sema;
+	struct semaphore fork_sema;
+
+	struct list child_list;
+	struct list_elem child_elem;
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -112,6 +131,7 @@ struct thread {
 #endif
 
 	/* Owned by thread.c. */
+	struct intr_frame pf;               /* Information for switching */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
 };
