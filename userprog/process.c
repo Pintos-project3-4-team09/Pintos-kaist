@@ -364,10 +364,10 @@ void process_exit(void)
 		close(i);
 	}
 
-
+	
 	sema_up(&cur->wait_sema);
+	// free(cur->spt.spt_hash.buckets);
 	sema_down(&cur->free_sema);
-
 	process_cleanup();
 }
 

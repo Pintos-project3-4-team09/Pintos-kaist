@@ -138,7 +138,7 @@ void check_address(void *addr)
 {
 	struct thread *cur = thread_current();
 	// 가상 주소가 있는지, 유저 영역인지, 하드 웨어에 멥핑되어 있는지
-	if (addr == NULL || !(is_user_vaddr(addr)) || pml4_get_page(cur->pml4, addr) == NULL)
+	if (addr == NULL || !(is_user_vaddr(addr)) )
 	{
 		exit(-1);
 	}
