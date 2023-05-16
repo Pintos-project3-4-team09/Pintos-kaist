@@ -66,8 +66,11 @@ void syscall_init(void)
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED)
 {
+#ifdef VM
+	thread_current()->user_rsp = f->rsp;
 	// TODO: Your implementation goes here.
 	// printf ("system call!\n");
+#endif
 	switch (f->R.rax)
 	{
 	case SYS_HALT:

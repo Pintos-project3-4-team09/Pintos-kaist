@@ -6,6 +6,8 @@
 #include <string.h>
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
+#define PAGE_SIZE (1 << 12) // 4KB
+#define STACK_SIZE 0x100000 // 1mb
 void
 vm_init (void) {
 	vm_anon_init ();
@@ -47,35 +49,21 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
-	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
-
-		/* TODO: Insert the page into the spt. */
-		// struct page *new_page = palloc_get_page(PAL_USER);
 		struct page *new_page = (struct page *)malloc(sizeof(struct page));
-		// if (new_page != NULL){
 		switch (VM_TYPE(type))
 		{
 		case VM_ANON:
-			// new_page->va = upage;
-			// new_page->frame = NULL;
 			uninit_new(new_page,upage,init,type,aux,anon_initializer);
 			break;
 		case VM_FILE:
-			// new_page->va = upage;
-			// new_page->frame = NULL;
 			uninit_new(new_page,upage,init,type,aux,file_backed_initializer);
 			break;
 		default:
 			break;
 		}
 		new_page->writable = writable;
-		/* TODO: Insert the page into the spt. */
 		return spt_insert_page(spt,new_page);
-		// }
 	}
 	return false;
 err:
@@ -142,7 +130,6 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	// struct frame *frame = NULL;
 	/* TODO: Fill this function. */
 	// struct frame *frame = palloc_get_page(PAL_USER);
 	struct frame *frame = malloc(sizeof(struct frame));
@@ -162,6 +149,7 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	vm_alloc_page(VM_ANON,addr,1);
 }
 
 /* Handle the fault on write_protected page */
@@ -174,16 +162,36 @@ bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	// struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	struct page *page = spt_find_page(spt,pg_round_down(addr));
-	// if (page == NULL || is_kernel_vaddr(addr)){
-	if (page == NULL){
+	if (is_kernel_vaddr(addr)){
 		return false;
 	}
+	if (user) {
+		//push인지 array인지 어케 알아요? addr > rsp
+		void * rsp = f->rsp;
+		if (rsp - 8 == addr || rsp < addr){
+			if ((pg_round_down(rsp) - PAGE_SIZE) > (USER_STACK - STACK_SIZE) ){
+				vm_stack_growth(pg_round_down(addr));
+			}
+		}
+	}
+	else {
+		void *rsp = thread_current()->user_rsp;
+		if (rsp - 8 == addr || rsp < addr){
+			if ((pg_round_down(rsp) - PAGE_SIZE) > (USER_STACK - STACK_SIZE) ){
+				vm_stack_growth(pg_round_down(addr));
+			}
+		}
+	}
+	
+	struct page *page = spt_find_page(spt,pg_round_down(addr));
+	
+	if (page == NULL ){
+		return false;
+	}
+	
 	return vm_claim_page(page->va);
-	// return vm_do_claim_page (page);
 }
 
 /* Free the page.
@@ -222,7 +230,6 @@ vm_do_claim_page (struct page *page) {
 }
 
 /* Initialize new supplemental page table */
-// 보조 페이지 테이블를 초기화합니다. 보조 페이지 테이블를 어떤 자료 구조로 구현할지 선택하세요. userprog/process.c의 initd 함수로 새로운 프로세스가 시작하거나 process.c의 __do_fork로 자식 프로세스가 생성될 때 위의 함수가 호출됩니다.
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	hash_init(&spt->spt_hash, page_hash, page_less, NULL);
@@ -254,9 +261,6 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			if(!vm_alloc_page(f_real_type,upage,writable) || !vm_claim_page(upage)){
 				return false;
 			}
-			// if(!vm_claim_page(f->va)){
-			// 	return false;
-			// }
 			struct page *child_page = spt_find_page(dst,upage);
 			memcpy(child_page->frame->kva,f->frame->kva,PGSIZE);
 		}
