@@ -13,6 +13,7 @@
 #include "filesys/file.h"
 #include <devices/input.h>
 #include "threads/palloc.h"
+#include "vm/vm.h"
 
 
 void syscall_entry(void);
@@ -115,7 +116,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_CLOSE:
 		close(f->R.rdi);
 		break;
-
+	// case
 	default:
 		exit(-1);
 		break;
@@ -141,7 +142,8 @@ void check_address(void *addr)
 {
 	struct thread *cur = thread_current();
 	// 가상 주소가 있는지, 유저 영역인지, 하드 웨어에 멥핑되어 있는지
-	if (addr == NULL || !(is_user_vaddr(addr)) )
+	// if (addr == NULL || !(is_user_vaddr(addr)) )
+	if (addr == NULL || is_kernel_vaddr(addr) )
 	{
 		exit(-1);
 	}
@@ -229,7 +231,7 @@ int read(int fd, void *buffer, unsigned size)
 	}
 	// fd가 0 이면 키보드 입력을 버퍼에 저장 후 크기를 리턴
 	if (fd == 0)
-	{
+	{	
 		lock_acquire(&filesys_lock);
 		int byte = input_getc();
 		lock_release(&filesys_lock);
@@ -238,7 +240,10 @@ int read(int fd, void *buffer, unsigned size)
 	struct file *file = thread_current()->fd_table[fd];
 	// fd가 0이 아니고 파일 열리면 파일 크기만큼 읽고 저장 후 크기 리턴
 	if (file)
-	{
+	{	
+		// if (spt_find_page(&thread_current()->spt,buffer)->writable == 0){
+		// 	exit(-1);
+		// }
 		lock_acquire(&filesys_lock);
 		int read_byte = file_read(file, buffer, size);
 		lock_release(&filesys_lock);
@@ -297,6 +302,19 @@ void close(int fd)
 		return;
 	remove_file(fd);
 }
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
+	if ((uintptr_t)addr % PAGE_SIZE != 0 || is_kernel_vaddr(addr) || length == 0 || fd == 0 || fd == 1 || filesize(fd) == 0){
+		return NULL;
+	}
+	if (spt_find_page(&thread_current()->spt,addr) != NULL || addr == NULL ){
+		return NULL;
+	}
+	// do_mmap (void *addr, size_t length, int writable,
+	// 	struct file *file, off_t offset) {
+	
+	return do_mmap(addr,length,writable,find_file_by_fd(fd),offset);
+}
+
 
 // file 위치 찾기
 static struct file *find_file_by_fd(int fd)

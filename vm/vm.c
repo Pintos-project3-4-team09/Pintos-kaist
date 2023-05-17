@@ -6,8 +6,7 @@
 #include <string.h>
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
-#define PAGE_SIZE (1 << 12) // 4KB
-#define STACK_SIZE 0x100000 // 1mb
+
 void
 vm_init (void) {
 	vm_anon_init ();
@@ -170,16 +169,16 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (user) {
 		//push인지 array인지 어케 알아요? addr > rsp
 		void * rsp = f->rsp;
-		if (rsp - 8 == addr || rsp < addr){
-			if ((pg_round_down(rsp) - PAGE_SIZE) > (USER_STACK - STACK_SIZE) ){
+		if (rsp - 8 <= addr || rsp < addr){
+			if ((pg_round_down(rsp) - PAGE_SIZE) >= (USER_STACK - STACK_SIZE) ){
 				vm_stack_growth(pg_round_down(addr));
 			}
 		}
 	}
 	else {
 		void *rsp = thread_current()->user_rsp;
-		if (rsp - 8 == addr || rsp < addr){
-			if ((pg_round_down(rsp) - PAGE_SIZE) > (USER_STACK - STACK_SIZE) ){
+		if (rsp - 8 <= addr || rsp < addr){
+			if ((pg_round_down(rsp) - PAGE_SIZE) >= (USER_STACK - STACK_SIZE) ){
 				vm_stack_growth(pg_round_down(addr));
 			}
 		}

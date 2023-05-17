@@ -21,6 +21,7 @@
 #include "intrinsic.h"
 #ifdef VM
 #include "vm/vm.h"
+#include "userprog/syscall.h"
 #endif
 
 static void process_cleanup(void);
@@ -286,8 +287,11 @@ int process_exec(void *f_name)
 		argc++;
 	}
 
+	lock_acquire(&filesys_lock);
 	/* And then load the binary */
 	success = load(file_name, &_if);
+	lock_release(&filesys_lock);
+
 	/* If load failed, quit. */
 	if (!success)
 	{

@@ -32,6 +32,8 @@ enum vm_type {
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
+#define PAGE_SIZE (1 << 12) // 4KB
+#define STACK_SIZE 0x100000 // 1mb
 
 struct page_operations;
 struct thread;
