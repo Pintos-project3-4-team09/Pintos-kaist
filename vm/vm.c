@@ -163,7 +163,11 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	// write 어디서 고려?
 	if (is_kernel_vaddr(addr)){
+		return false;
+	}
+	if (!not_present ){
 		return false;
 	}
 	if (user) {

@@ -32,6 +32,9 @@ int write(int fd, void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+void *munmap(void *addr);
+
 
 static struct file *find_file_by_fd(int fd);
 int add_file_to_fdt(struct file *file);
@@ -116,27 +119,19 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_CLOSE:
 		close(f->R.rdi);
 		break;
-	// case
+	case SYS_MMAP:
+		// printf('%d\n',f->R.rcx);
+		f->R.rax = mmap(f->R.rdi,f->R.rsi,f->R.rdx,f->R.r10,f->R.r8);
+		break;
+	case SYS_MUNMAP:
+		munmap(f->R.rdi);
+		break;
 	default:
 		exit(-1);
 		break;
 	}
 	// thread_exit();
 }
-// SYS_HALT,                   /* Halt the operating system. */
-// SYS_EXIT,                   /* Terminate this process. */
-// SYS_FORK,                   /* Clone current process. */
-// SYS_EXEC,                   /* Switch current process. */
-// SYS_WAIT,                   /* Wait for a child process to die. */
-// SYS_CREATE,                 /* Create a file. */
-// SYS_REMOVE,                 /* Delete a file. */
-// SYS_OPEN,                   /* Open a file. */
-// SYS_FILESIZE,               /* Obtain a file's size. */
-// SYS_READ,                   /* Read from a file. */
-// SYS_WRITE,                  /* Write to a file. */
-// SYS_SEEK,                   /* Change position in a file. */
-// SYS_TELL,                   /* Report current position in a file. */
-// SYS_CLOSE,                  /* Close a file. */
 
 void check_address(void *addr)
 {
@@ -199,9 +194,12 @@ bool remove(const char *file)
 int open(const char *file)
 {
 	check_address(file);
+	lock_acquire(&filesys_lock);
+	
 	struct file *file_obj = filesys_open(file);
 	if (file_obj == NULL)
 	{
+		lock_release(&filesys_lock);
 		return -1;
 	}
 	int fd = add_file_to_fdt(file_obj);
@@ -209,6 +207,7 @@ int open(const char *file)
 	{
 		file_close(file_obj);
 	}
+	lock_release(&filesys_lock);
 	return fd;
 }
 
@@ -242,12 +241,15 @@ int read(int fd, void *buffer, unsigned size)
 	if (file)
 	{	
 		// if (spt_find_page(&thread_current()->spt,buffer)->writable == 0){
-		// 	exit(-1);
+		// 	return -1;
 		// }
-		lock_acquire(&filesys_lock);
-		int read_byte = file_read(file, buffer, size);
-		lock_release(&filesys_lock);
-		return read_byte;
+		if (spt_find_page(&thread_current()->spt,buffer)->writable == 1){
+
+			lock_acquire(&filesys_lock);
+			int read_byte = file_read(file, buffer, size);
+			lock_release(&filesys_lock);
+			return read_byte;
+		}
 	}
 	return -1;
 }
@@ -303,19 +305,38 @@ void close(int fd)
 	remove_file(fd);
 }
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
-	if ((uintptr_t)addr % PAGE_SIZE != 0 || is_kernel_vaddr(addr) || length == 0 || fd == 0 || fd == 1 || filesize(fd) == 0){
+
+	// printf('%d\n',fd);
+	if ((uintptr_t)addr % PAGE_SIZE != 0 || offset % PAGE_SIZE != 0){
 		return NULL;
+	}
+	if ( is_kernel_vaddr(addr)){
+		return NULL;
+	}
+	// if ( fd == 0 || fd == 1){
+	// 	return NULL;
+	// }
+	if (length <= 0){
+		return NULL;
+	}
+	if (filesize(fd) == 0){
+		return NULL;
+		//length 0 이하 들어옴?
 	}
 	if (spt_find_page(&thread_current()->spt,addr) != NULL || addr == NULL ){
 		return NULL;
 	}
 	// do_mmap (void *addr, size_t length, int writable,
 	// 	struct file *file, off_t offset) {
-	
+	if (!find_file_by_fd(fd)){
+		return NULL;
+	}
 	return do_mmap(addr,length,writable,find_file_by_fd(fd),offset);
 }
 
-
+void *munmap(void *addr){
+	do_munmap(addr);
+}
 // file 위치 찾기
 static struct file *find_file_by_fd(int fd)
 {
