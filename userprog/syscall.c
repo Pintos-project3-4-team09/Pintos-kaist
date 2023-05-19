@@ -32,8 +32,8 @@ int write(int fd, void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
-void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
-void *munmap(void *addr);
+void *mmap (void *addr, int64_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
 
 
 static struct file *find_file_by_fd(int fd);
@@ -302,7 +302,7 @@ void close(int fd)
 		return;
 	remove_file(fd);
 }
-void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
+void *mmap (void *addr, int64_t length, int writable, int fd, off_t offset){
 
 	// printf('%d\n',fd);
 	if ((uintptr_t)addr % PAGE_SIZE != 0 || offset % PAGE_SIZE != 0){
@@ -311,15 +311,15 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
 	if ( is_kernel_vaddr(addr)){
 		return NULL;
 	}
-	// if ( fd == 0 || fd == 1){
-	// 	return NULL;
-	// }
-	if (length <= 0){
+	if ( fd == 0 || fd == 1){
+		exit(-1);
+	}
+	if (length <= 0 || KERN_BASE <= length){
 		return NULL;
 	}
 	if (filesize(fd) == 0){
 		return NULL;
-		//length 0 이하 들어옴?
+
 	}
 	if (spt_find_page(&thread_current()->spt,addr) != NULL || addr == NULL ){
 		return NULL;
@@ -329,10 +329,11 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
 	if (!find_file_by_fd(fd)){
 		return NULL;
 	}
-	return do_mmap(addr,length,writable,find_file_by_fd(fd),offset);
+	struct file *file = find_file_by_fd(fd);
+	return do_mmap(addr,length,writable,file_reopen(file),offset);
 }
 
-void *munmap(void *addr){
+void munmap(void *addr){
 	do_munmap(addr);
 }
 // file 위치 찾기

@@ -69,9 +69,6 @@ do_mmap (void *addr, size_t length, int writable,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		// void *aux = NULL;
-		// struct aux *aux = palloc_get_page(PAL_USER);
-		// struct aux *auxs = calloc(1,sizeof(struct aux));
 		struct aux *auxs = (struct aux *)malloc(sizeof(struct aux));
 
 		auxs->file = file;
@@ -99,30 +96,36 @@ void
 do_munmap (void *addr) {
 	uint64_t cur_pml4 = thread_current()->pml4;
 	struct page *page = spt_find_page(&thread_current()->spt,addr);
+
 	if (page == NULL){
 		return;
 	}
 	struct file *file = &page->map_file;
-	if (!file){
+	if (file == NULL){
 		return ;
 	}
 	uint32_t read_bytes = file_length(file);
 	
 	while(read_bytes > 0){
+ 
 		uint32_t page_read_bytes = read_bytes < PAGE_SIZE ? read_bytes : PAGE_SIZE;
 		
 		if (pml4_is_dirty(cur_pml4, addr)) {
 			lock_acquire(&filesys_lock);
-			int write_byte = file_write(file, addr, read_bytes);
+			int write_byte = file_write(file, addr, page_read_bytes);
 			lock_release(&filesys_lock);
 			pml4_set_dirty(cur_pml4,addr,0);
 		}
+
 		page->va = NULL;
-		addr -= PAGE_SIZE;
 		read_bytes -= page_read_bytes;
-		spt_remove_page(&thread_current()->spt,page);
 		pml4_clear_page(cur_pml4,addr);
+		addr += PAGE_SIZE;
+
+		// page = spt_find_page(&thread_current()->spt,addr);
+		// destroy(page);
 
 	}
+	// spt_remove_page(&thread_current()->spt,page);
 
 }
