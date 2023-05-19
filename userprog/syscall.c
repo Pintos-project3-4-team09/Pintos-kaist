@@ -239,17 +239,15 @@ int read(int fd, void *buffer, unsigned size)
 	struct file *file = thread_current()->fd_table[fd];
 	// fd가 0이 아니고 파일 열리면 파일 크기만큼 읽고 저장 후 크기 리턴
 	if (file)
-	{	
-		// if (spt_find_page(&thread_current()->spt,buffer)->writable == 0){
-		// 	return -1;
-		// }
-		if (spt_find_page(&thread_current()->spt,buffer)->writable == 1){
-
-			lock_acquire(&filesys_lock);
-			int read_byte = file_read(file, buffer, size);
-			lock_release(&filesys_lock);
-			return read_byte;
+	{	struct page *page = spt_find_page(&thread_current()->spt,buffer);
+		if (page != NULL && !page->writable){
+			exit(-1);
 		}
+
+		lock_acquire(&filesys_lock);
+		int read_byte = file_read(file, buffer, size);
+		lock_release(&filesys_lock);
+		return read_byte;
 	}
 	return -1;
 }
@@ -379,43 +377,3 @@ void remove_file(int fd)
 
 	cur->fd_table[fd] = NULL;
 }
-
-// switch (phdr.p_type) {
-// 			case PT_NULL:
-// 			case PT_NOTE:
-// 			case PT_PHDR:
-// 			case PT_STACK:
-// 			default:
-// 				/* Ignore this segment. */
-// 				break;
-// 			case PT_DYNAMIC:
-// 			case PT_INTERP:
-// 			case PT_SHLIB:
-// 				goto done;
-// 			case PT_LOAD:
-// 				if (validate_segment (&phdr, file)) {
-// 					bool writable = (phdr.p_flags & PF_W) != 0;
-// 					uint64_t file_page = phdr.p_offset & ~PGMASK;
-// 					uint64_t mem_page = phdr.p_vaddr & ~PGMASK;
-// 					uint64_t page_offset = phdr.p_vaddr & PGMASK;
-// 					uint32_t read_bytes, zero_bytes;
-// 					if (phdr.p_filesz > 0) {
-// 						/* Normal segment.
-// 						 * Read initial part from disk and zero the rest. */
-// 						read_bytes = page_offset + phdr.p_filesz;
-// 						zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
-// 								- read_bytes);
-// 					} else {
-// 						/* Entirely zero.
-// 						 * Don't read anything from disk. */
-// 						read_bytes = 0;
-// 						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
-// 					}
-// 					if (!load_segment (file, file_page, (void *) mem_page,
-// 								read_bytes, zero_bytes, writable))
-// 						goto done;
-// 				}
-// 				else
-// 					goto done;
-// 				break;
-// 		}

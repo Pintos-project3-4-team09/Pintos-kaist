@@ -170,27 +170,17 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (!not_present ){
 		return false;
 	}
-	if (user) {
-		//push인지 array인지 어케 알아요? addr > rsp
-		void * rsp = f->rsp;
-		if (rsp - 8 <= addr || rsp < addr){
-			if ((pg_round_down(rsp) - PAGE_SIZE) >= (USER_STACK - STACK_SIZE) ){
-				vm_stack_growth(pg_round_down(addr));
-			}
-		}
-	}
-	else {
-		void *rsp = thread_current()->user_rsp;
-		if (rsp - 8 <= addr || rsp < addr){
-			if ((pg_round_down(rsp) - PAGE_SIZE) >= (USER_STACK - STACK_SIZE) ){
-				vm_stack_growth(pg_round_down(addr));
-			}
+	void * rsp = user ? f->rsp : thread_current()->user_rsp;
+
+	if (rsp - 8 <= addr || rsp < addr){
+		if (addr >= (USER_STACK - STACK_SIZE) && addr <= USER_STACK){
+			vm_stack_growth(pg_round_down(addr));
 		}
 	}
 	
 	struct page *page = spt_find_page(spt,pg_round_down(addr));
 	
-	if (page == NULL ){
+	if (page == NULL){
 		return false;
 	}
 	
