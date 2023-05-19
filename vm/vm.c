@@ -101,6 +101,7 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 	vm_dealloc_page (page);
+	hash_delete(&spt->spt_hash,&page->hash_elem);
 	return true;
 }
 
@@ -254,6 +255,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			if(!vm_alloc_page(f_real_type,upage,writable) || !vm_claim_page(upage)){
 				return false;
 			}
+			// file 분기
 			struct page *child_page = spt_find_page(dst,upage);
 			memcpy(child_page->frame->kva,f->frame->kva,PGSIZE);
 		}

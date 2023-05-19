@@ -18,6 +18,7 @@ test_main (void)
   char buf[1024];
 
   /* Write file via mmap. */
+  // printf("%d\n",create ("sample.txt", strlen (sample)));
   CHECK (create ("sample.txt", strlen (sample)), "create \"sample.txt\"");
   CHECK ((handle = open ("sample.txt")) > 1, "open \"sample.txt\"");
   CHECK ((map = mmap (ACTUAL, 4096, 1, handle, 0)) != MAP_FAILED, "mmap \"sample.txt\"");
@@ -26,6 +27,10 @@ test_main (void)
 
   /* Read back via read(). */
   read (handle, buf, strlen (sample));
+  // printf("%d\n",strlen(handle));
+  // printf("%d\n",strlen(buf));
+  // printf("%d\n",strlen(sample));
+  // printf("%d\n",!memcmp (buf, sample, strlen (sample)));
   CHECK (!memcmp (buf, sample, strlen (sample)),
          "compare read data against written data");
   close (handle);

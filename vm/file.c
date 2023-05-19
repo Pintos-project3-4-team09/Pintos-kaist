@@ -46,6 +46,7 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	// dirty
 }
 
 /* Do the mmap */
@@ -55,6 +56,8 @@ do_mmap (void *addr, size_t length, int writable,
 	uint32_t read_bytes = file_length(file) < length ? file_length(file) : length;
 	uint32_t zero_bytes = read_bytes % PAGE_SIZE == 0 ? 0 : PAGE_SIZE - (read_bytes % PAGE_SIZE);
 	void * init_addr = addr;
+	int page_cnt = 0;
+	uint32_t init_read_bytes = read_bytes;
 	// struct file *re_file = file_reopen(file);
 	ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT(pg_ofs(addr) == 0);
@@ -79,14 +82,19 @@ do_mmap (void *addr, size_t length, int writable,
 		if (!vm_alloc_page_with_initializer (VM_FILE, addr,
 					writable, lazy_load_segment, auxs))
 			return NULL;
+
 		struct page *page = spt_find_page(&thread_current()->spt,addr);
+		page->file_length = init_read_bytes;
 		page->map_file = file;
+		page->offs = offset;
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		addr += PGSIZE;
 		offset += page_read_bytes;
+		
 	}
+	// spt_find_page(&thread_current()->spt,init_addr)->page_cnt = page_cnt;
 	return init_addr;
 
 }
@@ -96,35 +104,35 @@ void
 do_munmap (void *addr) {
 	uint64_t cur_pml4 = thread_current()->pml4;
 	struct page *page = spt_find_page(&thread_current()->spt,addr);
-
+	// page For문을 dealloc 
 	if (page == NULL){
 		return;
 	}
-	struct file *file = &page->map_file;
+	struct file *file = page->map_file;
 	if (file == NULL){
 		return ;
 	}
-	uint32_t read_bytes = file_length(file);
-	
+	uint32_t read_bytes = page->file_length;
 	while(read_bytes > 0){
  
 		uint32_t page_read_bytes = read_bytes < PAGE_SIZE ? read_bytes : PAGE_SIZE;
 		
 		if (pml4_is_dirty(cur_pml4, addr)) {
 			lock_acquire(&filesys_lock);
-			int write_byte = file_write(file, addr, page_read_bytes);
+			// int write_byte = file_write(file, addr, page_read_bytes);
+			int write_byte = file_write_at(file, addr, page_read_bytes,page->offs);
 			lock_release(&filesys_lock);
 			pml4_set_dirty(cur_pml4,addr,0);
 		}
 
-		page->va = NULL;
+		// page->va = NULL;
 		read_bytes -= page_read_bytes;
 		pml4_clear_page(cur_pml4,addr);
-		addr += PAGE_SIZE;
+		addr += read_bytes;
+		page->offs += PAGE_SIZE;
+		// spt_remove_page
 
 		// page = spt_find_page(&thread_current()->spt,addr);
-		// destroy(page);
-
 	}
 	// spt_remove_page(&thread_current()->spt,page);
 

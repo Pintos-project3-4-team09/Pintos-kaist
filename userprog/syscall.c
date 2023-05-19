@@ -14,6 +14,7 @@
 #include <devices/input.h>
 #include "threads/palloc.h"
 #include "vm/vm.h"
+#include "kernel/stdio.h"
 
 
 void syscall_entry(void);
@@ -237,7 +238,7 @@ int read(int fd, void *buffer, unsigned size)
 		return byte;
 	}
 	struct file *file = thread_current()->fd_table[fd];
-	// fd가 0이 아니고 파일 열리면 파일 크기만큼 읽고 저장 후 크기 리턴
+
 	if (file)
 	{	struct page *page = spt_find_page(&thread_current()->spt,buffer);
 		if (page != NULL && !page->writable){
