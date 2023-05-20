@@ -369,10 +369,10 @@ void process_exit(void)
 	}
 
 	
+	process_cleanup();
 	sema_up(&cur->wait_sema);
 	// free(cur->spt.spt_hash.buckets);
 	sema_down(&cur->free_sema);
-	process_cleanup();
 }
 
 /* Free the current process's resources. */

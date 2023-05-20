@@ -45,7 +45,42 @@ file_backed_swap_out (struct page *page) {
 /* Destory the file backed page. PAGE will be freed by the caller. */
 static void
 file_backed_destroy (struct page *page) {
+	uint64_t cur_pml4 = thread_current()->pml4;
 	struct file_page *file_page UNUSED = &page->file;
+	// void * pg_down_addr = pg_round_down(addr);
+	void * pg_down_addr = pg_round_down(page->va);
+	if (page == NULL){
+		return;
+	}
+	struct file *file = page->map_file;
+	if (file == NULL){
+		return ;
+	}
+	uint32_t read_bytes = page->file_length;
+	while(read_bytes > 0){
+ 
+		uint32_t page_read_bytes = read_bytes < PAGE_SIZE ? read_bytes : PAGE_SIZE;
+		
+		if (pml4_is_dirty(cur_pml4, pg_down_addr)) {
+			lock_acquire(&filesys_lock);
+			// int write_byte = file_write(file, addr, page_read_bytes);
+			int write_byte = file_write_at(file, pg_down_addr, page_read_bytes,page->offs);
+
+			lock_release(&filesys_lock);
+			pml4_set_dirty(cur_pml4,pg_down_addr,0);
+		}
+
+		// page->va = NULL;
+		read_bytes -= page_read_bytes;
+		pml4_clear_page(cur_pml4,pg_down_addr);
+		page->va += read_bytes;
+		page->offs += PAGE_SIZE;
+		// spt_remove_page
+
+		// page = spt_find_page(&thread_current()->spt,addr);
+	}
+	// spt_remove_page(&thread_current()->spt,page);
+
 	// dirty
 }
 
@@ -89,12 +124,13 @@ do_mmap (void *addr, size_t length, int writable,
 		page->offs = offset;
 		/* Advance. */
 		read_bytes -= page_read_bytes;
-		zero_bytes -= page_zero_bytes;
+		zero_bytes -= page_zero_bytes;		
 		addr += PGSIZE;
 		offset += page_read_bytes;
 		
 	}
 	// spt_find_page(&thread_current()->spt,init_addr)->page_cnt = page_cnt;
+
 	return init_addr;
 
 }
@@ -102,38 +138,18 @@ do_mmap (void *addr, size_t length, int writable,
 /* Do the munmap */
 void
 do_munmap (void *addr) {
-	uint64_t cur_pml4 = thread_current()->pml4;
+
 	struct page *page = spt_find_page(&thread_current()->spt,addr);
-	// page For문을 dealloc 
-	if (page == NULL){
-		return;
-	}
-	struct file *file = page->map_file;
-	if (file == NULL){
-		return ;
-	}
-	uint32_t read_bytes = page->file_length;
-	while(read_bytes > 0){
- 
-		uint32_t page_read_bytes = read_bytes < PAGE_SIZE ? read_bytes : PAGE_SIZE;
-		
-		if (pml4_is_dirty(cur_pml4, addr)) {
-			lock_acquire(&filesys_lock);
-			// int write_byte = file_write(file, addr, page_read_bytes);
-			int write_byte = file_write_at(file, addr, page_read_bytes,page->offs);
-			lock_release(&filesys_lock);
-			pml4_set_dirty(cur_pml4,addr,0);
+	int page_cnt = page->file_length % PAGE_SIZE == 0 ? page->file_length / PAGE_SIZE : (page->file_length / PAGE_SIZE) + 1;
+
+	// page를 For문으로 dealloc 
+	struct thread *cur_thread = thread_current();
+	for (int i = 0; i < page_cnt; i++){
+		if (page)
+		{
+			spt_remove_page(&cur_thread->spt,page);
+			addr += PGSIZE;
+			page = spt_find_page(&thread_current()->spt,addr);
 		}
-
-		// page->va = NULL;
-		read_bytes -= page_read_bytes;
-		pml4_clear_page(cur_pml4,addr);
-		addr += read_bytes;
-		page->offs += PAGE_SIZE;
-		// spt_remove_page
-
-		// page = spt_find_page(&thread_current()->spt,addr);
 	}
-	// spt_remove_page(&thread_current()->spt,page);
-
 }

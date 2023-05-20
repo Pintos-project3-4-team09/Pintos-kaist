@@ -40,7 +40,6 @@ struct thread;
 bool page_less(const struct hash_elem *a_,
 			   const struct hash_elem *b_, void *aux);
 unsigned page_hash(const struct hash_elem *p_, void *aux);
-
 #define VM_TYPE(type) ((type) & 7)
 
 /* The representation of "page".
@@ -122,5 +121,6 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+static bool vm_claim_file_page (void *va ,struct frame *frame);
 
 #endif  /* VM_VM_H */

@@ -100,9 +100,9 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
-	vm_dealloc_page (page);
 	hash_delete(&spt->spt_hash,&page->hash_elem);
-	return true;
+	vm_dealloc_page (page);
+	return;
 }
 
 /* Get the struct frame, that will be evicted. */
@@ -252,15 +252,57 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			}
 		}
 		else {
-			if(!vm_alloc_page(f_real_type,upage,writable) || !vm_claim_page(upage)){
+			if(!vm_alloc_page(f_real_type,upage,writable)){
+				return false;
+			}
+			if(!vm_claim_page(upage)){
 				return false;
 			}
 			// file 분기
 			struct page *child_page = spt_find_page(dst,upage);
 			memcpy(child_page->frame->kva,f->frame->kva,PGSIZE);
+			
 		}
+		// else {
+		// 	if(!vm_alloc_page(f_real_type,upage,writable)){
+		// 		return false;
+		// 	}
+		// 	if (f_cur_type == VM_ANON){
+		// 		if(!vm_claim_page(upage)){
+		// 			return false;
+		// 		}
+		// 		struct page *child_page = spt_find_page(dst,upage);
+		// 		memcpy(child_page->frame->kva,f->frame->kva,PGSIZE);
+
+		// 	}
+		// 	// else if (f_cur_type == VM_FILE){
+		// 	else {
+		// 		if(!vm_claim_file_page(upage,f->frame)){
+		// 			// struct page *child_page = spt_find_page(dst,upage);
+		// 			// child_page->frame = f->frame;
+		// 			// child_page->frame->kva = f->frame->kva;
+		// 			// memcpy(child_page->frame->kva,f->frame->kva,PGSIZE);
+
+		// 			return false;
+		// 		}
+		// 	}
+		// }
 	}
 	return true;
+}
+static bool 
+vm_claim_file_page (void *va UNUSED,struct frame *frame UNUSED) {
+	struct page *page = spt_find_page(&thread_current()->spt,va);
+	/* TODO: Fill this function */
+	if (page == NULL){
+		return false;
+	}
+	// page->frame = frame;
+	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	struct thread *cur = thread_current();
+	pml4_set_page(cur->pml4,page->va,frame->kva,page->writable);
+	
+	return swap_in (page, frame->kva);
 }
 
 void spt_dealloc(struct hash_elem *e,void *aux){
