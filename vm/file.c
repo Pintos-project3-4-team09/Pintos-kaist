@@ -49,9 +49,9 @@ file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
 	// void * pg_down_addr = pg_round_down(addr);
 	void * pg_down_addr = pg_round_down(page->va);
-	if (page == NULL){
-		return;
-	}
+	// if (page == NULL){
+	// 	return;
+	// }
 	struct file *file = page->map_file;
 	if (file == NULL){
 		return ;
@@ -78,6 +78,7 @@ file_backed_destroy (struct page *page) {
 		// spt_remove_page
 
 		// page = spt_find_page(&thread_current()->spt,addr);
+		// file_close(file);
 	}
 	// spt_remove_page(&thread_current()->spt,page);
 
@@ -140,16 +141,18 @@ void
 do_munmap (void *addr) {
 
 	struct page *page = spt_find_page(&thread_current()->spt,addr);
+	if (page == NULL){
+		return;
+	}
 	int page_cnt = page->file_length % PAGE_SIZE == 0 ? page->file_length / PAGE_SIZE : (page->file_length / PAGE_SIZE) + 1;
 
 	// page를 For문으로 dealloc 
 	struct thread *cur_thread = thread_current();
 	for (int i = 0; i < page_cnt; i++){
-		if (page)
-		{
-			spt_remove_page(&cur_thread->spt,page);
-			addr += PGSIZE;
-			page = spt_find_page(&thread_current()->spt,addr);
-		}
+		// spt_remove_page(&cur_thread->spt,page);
+		destroy(page);
+		addr += PGSIZE;
+		page = spt_find_page(&thread_current()->spt,addr);
+
 	}
 }

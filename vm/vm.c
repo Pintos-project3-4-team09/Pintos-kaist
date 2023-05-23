@@ -1,6 +1,7 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
 #include "threads/malloc.h"
+#include "userprog/syscall.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include <string.h>
@@ -17,6 +18,10 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init (&frame_table);
+	// lock_init(&swap_lock);
+
+
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -80,6 +85,8 @@ spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
 	struct hash_elem *e;
 	page->va = pg_round_down(va);
 	e = hash_find (&spt->spt_hash, &page->hash_elem);
+	free(page);
+	
 	return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
@@ -108,8 +115,8 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim (void) {
-	struct frame *victim = NULL;
 	 /* TODO: The policy for eviction is up to you. */
+	struct frame *victim = list_entry(list_pop_front(&frame_table),struct frame,frame_elem);
 
 	return victim;
 }
@@ -120,8 +127,15 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 	/* TODO: swap out the victim and return the evicted frame. */
-
-	return NULL;
+	if (victim == NULL) {
+		return NULL;
+	}
+	swap_out(victim->page);
+	// if (!swap_out(victim->page)){
+	// 		// exit(-1);
+	// 		return NULL;
+	// 	}
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -138,9 +152,23 @@ vm_get_frame (void) {
 	frame->page = NULL;
 	frame->kva = palloc_get_page(PAL_USER);
 
-	if (frame == NULL) {
-		PANIC ("todo");
+
+	// todo: swap-out
+	if (frame->kva == NULL) {
+		// lock_acquire(&swap_lock);
+		
+		struct frame *out_frame = vm_evict_frame();
+		// if (out_frame == NULL){
+		// 	return NULL;
+		// }
+				
+		frame->kva = palloc_get_page(PAL_USER);
+		// if(frame->kva == NULL){
+		// 	printf("Fail allocate frame !!!!!!!!!!\n");
+		// }
+		// frame->kva = out_frame->kva;
 	}
+	list_push_back(&frame_table,&frame->frame_elem);
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
 	return frame;

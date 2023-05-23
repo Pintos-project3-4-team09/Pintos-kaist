@@ -37,6 +37,8 @@ enum vm_type {
 
 struct page_operations;
 struct thread;
+struct list frame_table;
+struct lock swap_lock;
 bool page_less(const struct hash_elem *a_,
 			   const struct hash_elem *b_, void *aux);
 unsigned page_hash(const struct hash_elem *p_, void *aux);
@@ -57,6 +59,7 @@ struct page {
 	struct hash_elem hash_elem; /* Hash table element. */
 	bool writable;
 	int page_cnt;
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {

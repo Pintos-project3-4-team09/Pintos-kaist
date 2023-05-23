@@ -10,6 +10,7 @@
 #endif
 #include "include/threads/synch.h"
 
+struct thread *idle_thread;
 
 /* States in a thread's life cycle. */
 enum thread_status {
