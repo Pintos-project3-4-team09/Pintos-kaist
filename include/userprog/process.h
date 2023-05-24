@@ -17,10 +17,8 @@ void push_args(char **argv, int argc, struct intr_frame *if_);
 struct aux {
 	struct file *file; 
 	off_t ofs;
-	// uint8_t *page;
 	uint32_t read_bytes; 
 	uint32_t zero_bytes; 
-	// bool writable;
 };
 
 

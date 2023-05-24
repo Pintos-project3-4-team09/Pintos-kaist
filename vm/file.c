@@ -33,13 +33,31 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 /* Swap in the page by read contents from the file. */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
-	struct file_page *file_page UNUSED = &page->file;
+	// struct file_page *file_page UNUSED = &page->file;
+	struct aux * aux = (struct aux *) page->uninit.aux;
+	lazy_load_segment(page,aux);
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
+	uint64_t cur_pml4 = thread_current()->pml4;
 	struct file_page *file_page UNUSED = &page->file;
+	void * pg_down_addr = pg_round_down(page->va);
+
+	// struct file *file = page->map_file;
+	if (page == NULL){
+		return ;
+	}
+
+	struct aux * aux = (struct aux *) page->uninit.aux;
+
+	if (pml4_is_dirty(cur_pml4, pg_down_addr)) {
+        file_write_at(aux->file, page->frame->kva, PGSIZE, aux->ofs);
+		pml4_set_dirty(cur_pml4,pg_down_addr,0);
+	}
+	palloc_free_page(page->frame->kva);
+	pml4_clear_page(cur_pml4,pg_down_addr);
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -47,11 +65,8 @@ static void
 file_backed_destroy (struct page *page) {
 	uint64_t cur_pml4 = thread_current()->pml4;
 	struct file_page *file_page UNUSED = &page->file;
-	// void * pg_down_addr = pg_round_down(addr);
 	void * pg_down_addr = pg_round_down(page->va);
-	// if (page == NULL){
-	// 	return;
-	// }
+
 	struct file *file = page->map_file;
 	if (file == NULL){
 		return ;
@@ -70,19 +85,33 @@ file_backed_destroy (struct page *page) {
 			pml4_set_dirty(cur_pml4,pg_down_addr,0);
 		}
 
-		// page->va = NULL;
 		read_bytes -= page_read_bytes;
 		pml4_clear_page(cur_pml4,pg_down_addr);
 		page->va += read_bytes;
 		page->offs += PAGE_SIZE;
-		// spt_remove_page
-
-		// page = spt_find_page(&thread_current()->spt,addr);
-		// file_close(file);
 	}
-	// spt_remove_page(&thread_current()->spt,page);
+	// file_close(file);
+	// uint64_t cur_pml4 = thread_current()->pml4;
+	// struct file_page *file_page UNUSED = &page->file;
+	// void * pg_down_addr = pg_round_down(page->va);
 
-	// dirty
+	// // struct file *file = page->map_file;
+	// if (page == NULL){
+	// 	return ;
+	// }
+
+	// struct aux * aux = (struct aux *) page->uninit.aux;
+
+	// if (pml4_is_dirty(cur_pml4, pg_down_addr)) {
+	// 		lock_acquire(&filesys_lock);
+
+    //     file_write_at(aux->file, page->va, PGSIZE, aux->ofs);
+	// 		lock_release(&filesys_lock);
+
+	// 	pml4_set_dirty(cur_pml4,pg_down_addr,0);
+	// }
+
+	// pml4_clear_page(cur_pml4,pg_down_addr);
 }
 
 /* Do the mmap */
@@ -110,7 +139,7 @@ do_mmap (void *addr, size_t length, int writable,
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		struct aux *auxs = (struct aux *)malloc(sizeof(struct aux));
 
-		auxs->file = file;
+		auxs->file = file_duplicate(file);
 		auxs->ofs = offset;
 		auxs->read_bytes = page_read_bytes;
 		auxs->zero_bytes = page_zero_bytes;
@@ -121,7 +150,7 @@ do_mmap (void *addr, size_t length, int writable,
 
 		struct page *page = spt_find_page(&thread_current()->spt,addr);
 		page->file_length = init_read_bytes;
-		page->map_file = file;
+		page->map_file = file_duplicate(file);
 		page->offs = offset;
 		/* Advance. */
 		read_bytes -= page_read_bytes;
@@ -131,7 +160,6 @@ do_mmap (void *addr, size_t length, int writable,
 		
 	}
 	// spt_find_page(&thread_current()->spt,init_addr)->page_cnt = page_cnt;
-
 	return init_addr;
 
 }

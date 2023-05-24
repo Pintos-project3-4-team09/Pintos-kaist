@@ -55,6 +55,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 
 	if (spt_find_page (spt, upage) == NULL) {
 		struct page *new_page = (struct page *)malloc(sizeof(struct page));
+		new_page->uninit.aux = aux;
 		switch (VM_TYPE(type))
 		{
 		case VM_ANON:
@@ -131,10 +132,7 @@ vm_evict_frame (void) {
 		return NULL;
 	}
 	swap_out(victim->page);
-	// if (!swap_out(victim->page)){
-	// 		// exit(-1);
-	// 		return NULL;
-	// 	}
+
 	return victim;
 }
 
@@ -145,29 +143,20 @@ vm_evict_frame (void) {
 static struct frame *
 vm_get_frame (void) {
 	/* TODO: Fill this function. */
-	// struct frame *frame = palloc_get_page(PAL_USER);
 	struct frame *frame = malloc(sizeof(struct frame));
-	// struct frame *frame = calloc(1,sizeof(struct frame));
 
 	frame->page = NULL;
 	frame->kva = palloc_get_page(PAL_USER);
 
-
 	// todo: swap-out
 	if (frame->kva == NULL) {
-		// lock_acquire(&swap_lock);
-		
-		struct frame *out_frame = vm_evict_frame();
-		// if (out_frame == NULL){
-		// 	return NULL;
-		// }
-				
+		struct frame *out_frame = vm_evict_frame();	
 		frame->kva = palloc_get_page(PAL_USER);
-		// if(frame->kva == NULL){
-		// 	printf("Fail allocate frame !!!!!!!!!!\n");
+		// if (frame->kva == NULL){
+		// 	printf("Fail Allocate frame!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		// }
-		// frame->kva = out_frame->kva;
 	}
+
 	list_push_back(&frame_table,&frame->frame_elem);
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
