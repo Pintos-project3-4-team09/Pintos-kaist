@@ -6,6 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "filesys/fat.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -43,10 +44,24 @@ struct inode {
 static disk_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) {
 	ASSERT (inode != NULL);
-	if (pos < inode->data.length)
-		return inode->data.start + pos / DISK_SECTOR_SIZE;
-	else
-		return -1;
+	// 기존은 그냥 다음 sector를 찾아가게 함
+	// if (pos < inode->data.length)
+	// 	return inode->data.start + pos / DISK_SECTOR_SIZE;
+	// else
+	// 	return -1;
+
+	//fat을 보고 inode 찾아가게 하기
+	cluster_t start_clust = sector_to_cluster(inode->data.start);
+	while (pos >= DISK_SECTOR_SIZE){
+		//pos가 속한 cluster 찾기
+		if (fat_get(start_clust)==EOChain){
+			fat_create_chain(start_clust);
+		}
+		// file grow
+		start_clust = fat_get(start_clust);
+		pos -= DISK_SECTOR_SIZE;
+	}
+	return cluster_to_sector(start_clust);
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -80,18 +95,54 @@ inode_create (disk_sector_t sector, off_t length) {
 		size_t sectors = bytes_to_sectors (length);
 		disk_inode->length = length;
 		disk_inode->magic = INODE_MAGIC;
-		if (free_map_allocate (sectors, &disk_inode->start)) {
-			disk_write (filesys_disk, sector, disk_inode);
-			if (sectors > 0) {
-				static char zeros[DISK_SECTOR_SIZE];
-				size_t i;
 
-				for (i = 0; i < sectors; i++) 
-					disk_write (filesys_disk, disk_inode->start + i, zeros); 
+		cluster_t new_cluster = fat_create_chain(0);
+		if (new_cluster == 0){
+			free(disk_inode);
+			return success;
+		}
+
+		disk_inode->start = cluster_to_sector(new_cluster);
+		disk_write(filesys_disk,sector,disk_inode);
+
+		if (sectors > 0) {
+			// cluster_t clst = sector_to_cluster(disk_inode->start);
+			cluster_t clst = new_cluster;
+			cluster_t next_clst;
+
+			for (size_t i = 1; i < sectors; i++){
+				next_clst = fat_create_chain(clst);
+				if (next_clst == 0){
+					free(disk_inode);
+					return success;
+				}
+				clst = next_clst;
 			}
-			success = true; 
+			static char zeros[DISK_SECTOR_SIZE];
+			disk_sector_t old_disk_sector = disk_inode->start;
+			disk_sector_t new_disk_sector;
+
+			for (size_t i = 0; i < sectors; i++) 
+				disk_write (filesys_disk,old_disk_sector, zeros);
+			// 추후 삭제
+			new_disk_sector = cluster_to_sector(fat_get(sector_to_cluster(old_disk_sector)));
+			old_disk_sector = new_disk_sector;
+			//
 		} 
 		free (disk_inode);
+		success = true; 
+
+
+		// if (free_map_allocate (sectors, &disk_inode->start)) {
+		// 	disk_write (filesys_disk, sector, disk_inode);
+		// 	if (sectors > 0) {
+		// 		static char zeros[DISK_SECTOR_SIZE];
+		// 		size_t i;
+
+		// 		for (i = 0; i < sectors; i++) 
+		// 			disk_write (filesys_disk, disk_inode->start + i, zeros); 
+		// 	}
+		// 	success = true; 
 	}
 	return success;
 }
@@ -159,12 +210,19 @@ inode_close (struct inode *inode) {
 
 		/* Deallocate blocks if removed. */
 		if (inode->removed) {
-			free_map_release (inode->sector, 1);
-			free_map_release (inode->data.start,
-					bytes_to_sectors (inode->data.length)); 
+			fat_remove_chain(sector_to_cluster(inode->sector),0);     // inode 구조체(메타데이터)를 fat에서 제거
+			fat_remove_chain(sector_to_cluster(inode->data.start),0); // inode 실제 데이터 모두를 fat에서 제거
 		}
-
+		// 기존의 파일 크기보다 더 크게 write 한 경우, disk에 업데이트 해줌.
+		disk_write(filesys_disk, inode->sector, &inode->data);
 		free (inode); 
+
+		// if (inode->removed) {
+		// 	free_map_release (inode->sector, 1);
+		// 	free_map_release (inode->data.start,
+		// 			bytes_to_sectors (inode->data.length)); 
+		// }
+
 	}
 }
 

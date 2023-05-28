@@ -12,7 +12,7 @@ struct fat_boot {
 	unsigned int sectors_per_cluster; /* Fixed to 1 */
 	unsigned int total_sectors;
 	unsigned int fat_start;
-	unsigned int fat_sectors; /* Size of FAT in sectors. // 디스크 공간 크기를 sectors 단위로 표시 */
+	unsigned int fat_sectors; /* Size of FAT in sectors. // FAT를 sectors 단위로 표시 */
 	unsigned int root_dir_cluster;
 };
 
@@ -156,7 +156,7 @@ fat_fs_init (void) {
 	/* TODO: Your code goes here. */
 	/* data_start 는 fat_table 크기 */
 	fat_fs->data_start = fat_fs->bs.fat_start+fat_fs->bs.fat_sectors;
-	fat_fs->fat_length = fat_fs->bs.fat_sectors/(sizeof(cluster_t)*SECTORS_PER_CLUSTER);
+	fat_fs->fat_length = (fat_fs->bs.fat_sectors*DISK_SECTOR_SIZE) / (sizeof(cluster_t)*SECTORS_PER_CLUSTER);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -172,7 +172,7 @@ fat_fs_init (void) {
 cluster_t
 fat_create_chain (cluster_t clst) {
 	/* TODO: Your code goes here. */
-	int i = fat_fs->bs.fat_start+1;
+	cluster_t i = fat_fs->bs.fat_start+1;
 	if (clst == 0){
 		for (i ; i < fat_fs->fat_length ; i++){
 			if (fat_get(i) == 0){
@@ -182,7 +182,7 @@ fat_create_chain (cluster_t clst) {
 		}
 	}
 	// EOC 찾기
-	int temp = 0;
+	cluster_t temp = 0;
 	for (i ; i < fat_fs->fat_length ; i++){
 		if (fat_get(i) == EOChain) {
 			temp = i;
@@ -195,6 +195,10 @@ fat_create_chain (cluster_t clst) {
 			fat_put(temp,i);
 		}
 	}
+	if (i == fat_fs->fat_length){
+		return 0;
+	}
+
 	return i;
 }
 
@@ -205,8 +209,14 @@ fat_create_chain (cluster_t clst) {
 void
 fat_remove_chain (cluster_t clst, cluster_t pclst) {
 	/* TODO: Your code goes here. */
-	fat_put(pclst,EOChain);
-	for (clst ; clst< fat_fs->fat_length; clst = fat_get(clst)){
+	if (pclst != 0){
+		if (fat_get(pclst) != clst){
+			return;
+		}
+		fat_put(pclst, EOChain);
+	}
+	// fat_put(pclst,EOChain);
+	for (clst ; clst< fat_fs ->fat_length; clst = fat_get(clst)){
 		fat_put(clst,0);
 	}
 }
@@ -216,7 +226,8 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
-	*(fat_fs->fat + clst) = val;
+	// *(fat_fs->fat + clst) = val;
+	fat_fs->fat[clst] = val;
 }
 
 /* Fetch a value in the FAT table. */
@@ -224,8 +235,8 @@ fat_put (cluster_t clst, cluster_t val) {
 cluster_t
 fat_get (cluster_t clst) {
 	/* TODO: Your code goes here. */
-	int i = *(fat_fs->fat + clst);
-	return i;
+	return fat_fs->fat[clst];
+	// return *(fat_fs->fat + clst);
 }
 
 /* Covert a cluster # to a sector number. */
@@ -233,8 +244,13 @@ fat_get (cluster_t clst) {
 disk_sector_t
 cluster_to_sector (cluster_t clst) {
 	/* TODO: Your code goes here. */
-	// fat_fs->data_start * DISK_SECTOR_SIZE;
-	// fat_fs->fat_length = fat_fs->bs.fat_sectors/(sizeof(cluster_t)*SECTORS_PER_CLUSTER);
-	return clst * sizeof(cluster_t);
 
+	return fat_fs->data_start + clst * SECTORS_PER_CLUSTER;
+
+}
+
+cluster_t
+sector_to_cluster(disk_sector_t disk_sector){
+	return disk_sector - (fat_fs->data_start)/SECTORS_PER_CLUSTER;
+	// return fat_fs->fat + disk_sector;
 }
