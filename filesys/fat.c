@@ -181,27 +181,41 @@ fat_create_chain (cluster_t clst) {
 			}
 		}
 	}
-	// EOC 찾기
-	cluster_t temp = 0;
-	for (i ; i < fat_fs->fat_length ; i++){
-		if (fat_get(i) == EOChain) {
-			temp = i;
-		}
-	}
-	// 0찾기
-	for (i ; i < fat_fs->fat_length ; i++){
-		if (fat_get(i) == 0){
-			fat_put(i,EOChain);
-			fat_put(temp,i);
-		}
-	}
-	if (i == fat_fs->fat_length){
-		return 0;
-	}
+	else{
+		// cluster_t next_clst_idx = fat_get(clst);	
+		// if (next_clst_idx != EOChain) {	
+		// 	return 0;
+		// }
 
-	return i;
+		// cluster_t next_clst;
+		// for (clst ; next_clst != EOChain; clst = next_clst){
+		// 	next_clst = fat_get(clst);
+		// 	fat_put(clst,0);
+		// }
+
+		// EOC 찾기
+		// cluster_t temp = 0;
+		cluster_t next_clst;
+		if (fat_get(clst) != EOChain){
+			for (clst ; next_clst != EOChain ; clst = next_clst){
+				next_clst = fat_get(clst);
+			}
+		}
+		// 0찾기
+		for (i ; i < fat_fs->fat_length ; i++){
+			if (fat_get(i) == 0){
+				fat_put(clst,i);
+				fat_put(i,EOChain);
+				break;
+			}
+		}
+		if (i == fat_fs->fat_length){
+			return 0;
+		}
+
+		return i;
+	}
 }
-
 /* Remove the chain of clusters starting from CLST.
  * If PCLST is 0, assume CLST as the start of the chain. */
 
@@ -216,7 +230,9 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 		fat_put(pclst, EOChain);
 	}
 	// fat_put(pclst,EOChain);
-	for (clst ; clst< fat_fs ->fat_length; clst = fat_get(clst)){
+	cluster_t next_clst;
+	for (clst ; next_clst != EOChain; clst = next_clst){
+		next_clst = fat_get(clst);
 		fat_put(clst,0);
 	}
 }
@@ -226,8 +242,8 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
-	// *(fat_fs->fat + clst) = val;
-	fat_fs->fat[clst] = val;
+	*(fat_fs->fat + clst) = val;
+	// fat_fs->fat[clst] = val;
 }
 
 /* Fetch a value in the FAT table. */
@@ -235,8 +251,8 @@ fat_put (cluster_t clst, cluster_t val) {
 cluster_t
 fat_get (cluster_t clst) {
 	/* TODO: Your code goes here. */
-	return fat_fs->fat[clst];
-	// return *(fat_fs->fat + clst);
+	// return fat_fs->fat[clst];
+	return *(fat_fs->fat + clst);
 }
 
 /* Covert a cluster # to a sector number. */
